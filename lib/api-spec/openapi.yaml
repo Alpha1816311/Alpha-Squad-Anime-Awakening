@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: applications
+    description: Candidate applications and private founder review tools
 paths:
   /healthz:
     get:
@@ -24,6 +26,229 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /applications:
+    post:
+      operationId: submitApplication
+      tags: [applications]
+      summary: Submit a recruitment application
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplicationInput"
+      responses:
+        "201":
+          description: Application saved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicationReceipt"
+        "400":
+          description: Invalid application
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Application storage is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /applications/privacy-request:
+    post:
+      operationId: requestApplicationPrivacyAction
+      tags: [applications]
+      summary: Withdraw or delete an application using its reference and email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrivacyActionInput"
+      responses:
+        "200":
+          description: Privacy request processed without revealing whether an application matched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrivacyActionReceipt"
+        "400":
+          description: Invalid privacy request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Application storage is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /public/status:
+    get:
+      operationId: getPublicStatus
+      tags: [applications]
+      summary: Read public setup indicators
+      responses:
+        "200":
+          description: Publicly safe availability flags
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicStatus"
+  /founder/summary:
+    get:
+      operationId: getFounderSummary
+      tags: [applications]
+      summary: Get recruitment pipeline totals
+      responses:
+        "200":
+          description: Recruitment pipeline totals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FounderSummary"
+        "401":
+          description: Sign-in required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Founder access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /founder/applications:
+    get:
+      operationId: listFounderApplications
+      tags: [applications]
+      summary: List and filter candidate applications
+      parameters:
+        - in: query
+          name: status
+          schema:
+            $ref: "#/components/schemas/ApplicationStatus"
+        - in: query
+          name: role
+          schema:
+            type: string
+        - in: query
+          name: skill
+          schema:
+            type: string
+        - in: query
+          name: search
+          schema:
+            type: string
+            maxLength: 100
+      responses:
+        "200":
+          description: Private application records
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FounderApplicationList"
+        "401":
+          description: Sign-in required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Founder access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /founder/applications/{id}:
+    get:
+      operationId: getFounderApplication
+      tags: [applications]
+      summary: Read one candidate application
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Candidate application
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Application"
+        "401":
+          description: Sign-in required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Founder access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Application not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateFounderApplication
+      tags: [applications]
+      summary: Update application status or founder-only notes
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplicationUpdate"
+      responses:
+        "200":
+          description: Updated candidate application
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Application"
+        "400":
+          description: Invalid update
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Sign-in required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Founder access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Application not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +258,176 @@ components:
           type: string
       required:
         - status
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+    ApplicationStatus:
+      type: string
+      enum:
+        - NEW
+        - UNDER REVIEW
+        - INTERVIEW
+        - PRACTICAL TASK
+        - SHORTLISTED
+        - SELECTED
+        - WAITLISTED
+        - DECLINED
+        - WITHDRAWN
+    SkillLevel:
+      type: string
+      enum:
+        - Beginner
+        - Basic knowledge
+        - Independent on simple tasks
+        - Strong practical ability
+        - Can mentor teammates
+    TeamworkAnswers:
+      type: object
+      properties:
+        prototypePriority: { type: string, minLength: 1, maxLength: 1500 }
+        unfamiliarTechnology: { type: string, minLength: 1, maxLength: 1500 }
+        blockedTeammate: { type: string, minLength: 1, maxLength: 1500 }
+        failingFeature: { type: string, minLength: 1, maxLength: 1500 }
+        architectureDisagreement: { type: string, minLength: 1, maxLength: 1500 }
+        communicateDelays: { type: string, maxLength: 1500 }
+        handleFeedback: { type: string, maxLength: 1500 }
+        expectFromTeammates: { type: string, maxLength: 1500 }
+        offerToTeammates: { type: string, maxLength: 1500 }
+      required:
+        - prototypePriority
+        - unfamiliarTechnology
+        - blockedTeammate
+        - failingFeature
+        - architectureDisagreement
+    ApplicationInput:
+      type: object
+      properties:
+        fullName: { type: string, minLength: 2, maxLength: 120 }
+        email: { type: string, format: email, maxLength: 254 }
+        cityState: { type: string, minLength: 2, maxLength: 120 }
+        institution: { type: string, minLength: 2, maxLength: 180 }
+        background: { type: string, minLength: 2, maxLength: 160 }
+        academicStatus: { type: string, minLength: 1, maxLength: 80 }
+        primaryRole: { type: string, minLength: 2, maxLength: 100 }
+        secondarySkills:
+          type: array
+          maxItems: 30
+          items: { type: string, maxLength: 80 }
+        skillLevel:
+          $ref: "#/components/schemas/SkillLevel"
+        toolsUsed:
+          type: array
+          maxItems: 50
+          items: { type: string, maxLength: 80 }
+        projectExperience: { type: string, maxLength: 3000 }
+        contribution: { type: string, maxLength: 2000 }
+        learningGoals: { type: string, minLength: 1, maxLength: 2000 }
+        hoursPerWeek: { type: integer, minimum: 1, maximum: 100 }
+        motivation: { type: string, minLength: 1, maxLength: 2500 }
+        teamwork:
+          $ref: "#/components/schemas/TeamworkAnswers"
+        favoriteAnime: { type: string, maxLength: 100 }
+        favoriteCharacter: { type: string, maxLength: 100 }
+        fictionalClass: { type: string, maxLength: 100 }
+        phone: { type: string, maxLength: 40 }
+        githubUrl: { type: string, format: uri, maxLength: 300 }
+        linkedinUrl: { type: string, format: uri, maxLength: 300 }
+        portfolioUrl: { type: string, format: uri, maxLength: 500 }
+        consent: { type: boolean, enum: [true] }
+      required:
+        - fullName
+        - email
+        - cityState
+        - institution
+        - background
+        - academicStatus
+        - primaryRole
+        - secondarySkills
+        - skillLevel
+        - toolsUsed
+        - projectExperience
+        - contribution
+        - learningGoals
+        - hoursPerWeek
+        - motivation
+        - teamwork
+        - consent
+    Application:
+      allOf:
+        - $ref: "#/components/schemas/ApplicationInput"
+        - type: object
+          properties:
+            id: { type: string, format: uuid }
+            reference: { type: string }
+            status:
+              $ref: "#/components/schemas/ApplicationStatus"
+            founderNotes: { type: string }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+          required: [id, reference, status, founderNotes, createdAt, updatedAt]
+    ApplicationReceipt:
+      type: object
+      properties:
+        reference: { type: string }
+        createdAt: { type: string, format: date-time }
+        notificationStatus:
+          type: string
+          enum: [configured, not_configured, failed]
+      required: [reference, createdAt, notificationStatus]
+    PrivacyActionInput:
+      type: object
+      properties:
+        reference: { type: string, minLength: 12, maxLength: 40 }
+        email: { type: string, format: email, maxLength: 254 }
+        action: { type: string, enum: [WITHDRAW, DELETE] }
+      required: [reference, email, action]
+    PrivacyActionReceipt:
+      type: object
+      properties:
+        message: { type: string }
+      required: [message]
+    ApplicationUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        status:
+          $ref: "#/components/schemas/ApplicationStatus"
+        founderNotes: { type: string, maxLength: 5000 }
+    FounderApplicationList:
+      type: object
+      properties:
+        applications:
+          type: array
+          items:
+            $ref: "#/components/schemas/Application"
+        total: { type: integer }
+      required: [applications, total]
+    FounderSummary:
+      type: object
+      properties:
+        total: { type: integer }
+        new: { type: integer }
+        underReview: { type: integer }
+        interviews: { type: integer }
+        practicalTasks: { type: integer }
+        shortlisted: { type: integer }
+        selected: { type: integer }
+      required:
+        - total
+        - new
+        - underReview
+        - interviews
+        - practicalTasks
+        - shortlisted
+        - selected
+    PublicStatus:
+      type: object
+      properties:
+        storage: { type: string, enum: [database, unavailable] }
+        emailNotifications: { type: boolean }
+        aiAnalysis: { type: boolean }
+      required: [storage, emailNotifications, aiAnalysis]
 

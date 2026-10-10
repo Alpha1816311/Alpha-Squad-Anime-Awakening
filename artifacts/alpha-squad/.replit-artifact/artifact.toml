@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "ALPHA SQUAD — Anime Awakening"
+description = "A mobile-first recruitment platform for an ambitious hackathon squad, combining an original anime-inspired awakening experience with a real candidate application and private founder review tools."
+version = "1.0.0"
+id = "artifacts/alpha-squad"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23402
+
+[services.development]
+run = "pnpm --filter @workspace/alpha-squad run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/alpha-squad", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/alpha-squad/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23402"
+BASE_PATH = "/"
