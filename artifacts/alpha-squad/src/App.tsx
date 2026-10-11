@@ -256,6 +256,7 @@ function Footer({ onReplayIntro }: { onReplayIntro?: () => void }) {
 }
 
 const steps = ['Your signal', 'What you bring', 'How you team up', 'Review'];
+const CONSENT_REQUIRED_MESSAGE = 'Check the box below to confirm how your application will be used.';
 const teamworkPrompts: { key: keyof ApplicationInput['teamwork']; label: string; help: string; required?: boolean }[] = [
   { key: 'prototypePriority', label: 'A prototype is due soon. How do you decide what to build first?', help: 'Tell us what you would prioritize and why.', required: true },
   { key: 'unfamiliarTechnology', label: 'You need to use a technology you have never touched. What do you do?', help: 'We value how you approach the unknown.', required: true },
@@ -299,6 +300,7 @@ function ApplicationPage() {
   });
   const [otherRoleSelected, setOtherRoleSelected] = useState(false);
   const [consentAccepted, setConsentAccepted] = useState(false);
+  const consentInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState(0);
   const [errors, setErrors] = useState<string[]>([]);
   const mutation = useSubmitApplication();
@@ -318,16 +320,37 @@ function ApplicationPage() {
     if (n === 2) return [...teamworkPrompts.filter(({ key }) => !form.teamwork[key]?.trim()).map(({ label }) => `${label} needs an answer.`), ...(!form.motivation.trim() ? ['Motivation is required.'] : [])];
     return [];
   };
+  function goToStep(nextStep: number) {
+    setErrors([]);
+    setStep(nextStep);
+    window.scrollTo({ top: 0 });
+  }
   function nextStep() {
     const missing = requiredForStep(step);
     if (missing.length) { setErrors(missing); return; }
-    setErrors([]); setStep(Math.min(step + 1, 3)); window.scrollTo({ top: 0 });
+    goToStep(Math.min(step + 1, 3));
   }
   function submit(event: FormEvent) {
     event.preventDefault();
-    const invalid = [0, 1, 2].flatMap(requiredForStep);
-    if (!consentAccepted) invalid.push('Consent is required to submit.');
-    if (invalid.length) { setErrors(invalid); setStep(invalid.some((item) => ['name', 'Email', 'region', 'Institution', 'Background', 'Academic'].some((s) => item.includes(s))) ? 0 : invalid.some((item) => item.includes('role') || item.includes('Learning')) ? 1 : 2); return; }
+    const firstIncompleteStep = [0, 1, 2]
+      .map((index) => ({ index, missing: requiredForStep(index) }))
+      .find(({ missing }) => missing.length > 0);
+    if (firstIncompleteStep) {
+      setErrors(firstIncompleteStep.missing);
+      setStep(firstIncompleteStep.index);
+      window.scrollTo({ top: 0 });
+      return;
+    }
+    if (!consentAccepted) {
+      setErrors([CONSENT_REQUIRED_MESSAGE]);
+      setStep(3);
+      window.requestAnimationFrame(() => {
+        consentInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        consentInputRef.current?.focus({ preventScroll: true });
+      });
+      return;
+    }
+    setErrors([]);
     mutation.mutate({ data: form });
   }
   if (mutation.isSuccess) return <Receipt reference={mutation.data.reference} createdAt={mutation.data.createdAt} notificationStatus={mutation.data.notificationStatus} />;
@@ -337,14 +360,14 @@ function ApplicationPage() {
       <div className="form-heading"><div className="eyebrow"><span className="eyebrow-line" /> RECRUITMENT / CANDIDATE FILE</div><h1>Enter the<br /><em>awakening.</em></h1><p>This is a real team, not an audition. Take your time. Honest beats polished.</p></div>
       <div className="application-layout">
         <aside className="step-rail" aria-label="Application steps">
-          {steps.map((name, index) => <button key={name} type="button" className={`step-item ${index === step ? 'step-active' : ''} ${index < step ? 'step-done' : ''}`} onClick={() => index < step && setStep(index)} disabled={index > step} aria-current={index === step ? 'step' : undefined} data-testid={`button-step-${index + 1}`}>
+          {steps.map((name, index) => <button key={name} type="button" className={`step-item ${index === step ? 'step-active' : ''} ${index < step ? 'step-done' : ''}`} onClick={() => index < step && goToStep(index)} disabled={index > step} aria-current={index === step ? 'step' : undefined} data-testid={`button-step-${index + 1}`}>
             <span className="step-number">{index < step ? <Check size={14} /> : `0${index + 1}`}</span><span>{name}</span>
           </button>)}
           <div className="rail-note"><ShieldCheck size={18} /><span>Only authorized founders review your application.</span></div>
         </aside>
         <form className="application-form" onSubmit={submit} noValidate>
           <div className="form-step-meta"><span>PHASE 0{step + 1} / 04</span><span>{steps[step].toUpperCase()}</span></div>
-          {errors.length > 0 && <div className="validation-alert" role="alert"><CircleAlert size={17} /><div><strong>A little more signal needed</strong><ul>{errors.map((error) => <li key={error}>{error}</li>)}</ul></div></div>}
+          {errors.length > 0 && <div className="validation-alert" role="alert"><CircleAlert size={17} /><div><strong>{errors.includes(CONSENT_REQUIRED_MESSAGE) ? 'One final step before submission' : 'Complete these required fields before continuing'}</strong><ul>{errors.map((error) => <li key={error}>{error}</li>)}</ul></div></div>}
           {mutation.isError && <div className="validation-alert" role="alert"><CircleAlert size={17} /><div><strong>Your application did not send.</strong><span>{getErrorMessage(mutation.error)} Please try again.</span></div></div>}
           {step === 0 && <section className="form-section reveal"><h2>First, the human.</h2><p className="form-section-intro">A few basics help us understand where you are and how to reach you.</p>
             <div className="field-grid"><Field label="Full name" required><Input name="full-name" value={form.fullName} onChange={(v) => update('fullName', v)} placeholder="How should we address you?" required /></Field>
@@ -407,13 +430,13 @@ function ApplicationPage() {
             </div>
           </section>}
           {step === 3 && <section className="form-section reveal"><h2>Check your signal.</h2><p className="form-section-intro">Give everything a final look. You can go back to any section before sending.</p>
-            <ReviewGroup title="Your signal" step={0} onEdit={setStep}><ReviewItem label="Name" value={form.fullName} /><ReviewItem label="Email" value={form.email} /><ReviewItem label="Phone" value={form.phone} /><ReviewItem label="Location" value={form.cityState} /><ReviewItem label="Institution" value={form.institution} /><ReviewItem label="Background" value={`${form.background} · ${form.academicStatus}`} /></ReviewGroup>
-            <ReviewGroup title="What you bring" step={1} onEdit={setStep}><ReviewItem label="Primary role" value={form.primaryRole} /><ReviewItem label="Experience level" value={form.skillLevel} /><ReviewItem label="Skills" value={form.secondarySkills.join(', ')} /><ReviewItem label="Tools" value={form.toolsUsed.join(', ')} /><ReviewItem label="Time" value={`${form.hoursPerWeek} hours / week`} /><ReviewItem label="Projects & experience" value={form.projectExperience} /><ReviewItem label="Contribution" value={form.contribution} /><ReviewItem label="Learning goals" value={form.learningGoals} /><ReviewItem label="GitHub" value={form.githubUrl} /><ReviewItem label="LinkedIn" value={form.linkedinUrl} /><ReviewItem label="Portfolio" value={form.portfolioUrl} /><ReviewItem label="Favorite anime" value={form.favoriteAnime} /><ReviewItem label="Favorite character" value={form.favoriteCharacter} /><ReviewItem label="Fictional class" value={form.fictionalClass} /></ReviewGroup>
-            <ReviewGroup title="How you team up" step={2} onEdit={setStep}><ReviewItem label="Motivation" value={form.motivation} />{teamworkPrompts.map((prompt) => <ReviewItem key={prompt.key} label={prompt.label} value={form.teamwork[prompt.key]} />)}{form.teamwork.communicateDelays && <ReviewItem label="Communicating changes" value={form.teamwork.communicateDelays} />}{form.teamwork.handleFeedback && <ReviewItem label="Feedback" value={form.teamwork.handleFeedback} />}{form.teamwork.expectFromTeammates && <ReviewItem label="What you hope for from teammates" value={form.teamwork.expectFromTeammates} />}{form.teamwork.offerToTeammates && <ReviewItem label="What teammates can count on you for" value={form.teamwork.offerToTeammates} />}</ReviewGroup>
-            <label className="consent-check"><input type="checkbox" checked={consentAccepted} onChange={(e) => setConsentAccepted(e.target.checked)} data-testid="input-application-consent" /><span><strong>I understand how this application is used.</strong><small>It will be stored for recruitment review and visible only to authorized founders. If enabled, SendGrid processes my email to send a receipt; founder alerts share only my name, role, and reference. Fictional classes do not affect eligibility. I can use the site footer to withdraw or request deletion.</small></span></label>
+             <ReviewGroup title="Your signal" step={0} onEdit={goToStep}><ReviewItem label="Name" value={form.fullName} /><ReviewItem label="Email" value={form.email} /><ReviewItem label="Phone" value={form.phone} /><ReviewItem label="Location" value={form.cityState} /><ReviewItem label="Institution" value={form.institution} /><ReviewItem label="Background" value={`${form.background} · ${form.academicStatus}`} /></ReviewGroup>
+             <ReviewGroup title="What you bring" step={1} onEdit={goToStep}><ReviewItem label="Primary role" value={form.primaryRole} /><ReviewItem label="Experience level" value={form.skillLevel} /><ReviewItem label="Skills" value={form.secondarySkills.join(', ')} /><ReviewItem label="Tools" value={form.toolsUsed.join(', ')} /><ReviewItem label="Time" value={`${form.hoursPerWeek} hours / week`} /><ReviewItem label="Projects & experience" value={form.projectExperience} /><ReviewItem label="Contribution" value={form.contribution} /><ReviewItem label="Learning goals" value={form.learningGoals} /><ReviewItem label="GitHub" value={form.githubUrl} /><ReviewItem label="LinkedIn" value={form.linkedinUrl} /><ReviewItem label="Portfolio" value={form.portfolioUrl} /><ReviewItem label="Favorite anime" value={form.favoriteAnime} /><ReviewItem label="Favorite character" value={form.favoriteCharacter} /><ReviewItem label="Fictional class" value={form.fictionalClass} /></ReviewGroup>
+             <ReviewGroup title="How you team up" step={2} onEdit={goToStep}><ReviewItem label="Motivation" value={form.motivation} />{teamworkPrompts.map((prompt) => <ReviewItem key={prompt.key} label={prompt.label} value={form.teamwork[prompt.key]} />)}{form.teamwork.communicateDelays && <ReviewItem label="Communicating changes" value={form.teamwork.communicateDelays} />}{form.teamwork.handleFeedback && <ReviewItem label="Feedback" value={form.teamwork.handleFeedback} />}{form.teamwork.expectFromTeammates && <ReviewItem label="What you hope for from teammates" value={form.teamwork.expectFromTeammates} />}{form.teamwork.offerToTeammates && <ReviewItem label="What teammates can count on you for" value={form.teamwork.offerToTeammates} />}</ReviewGroup>
+             <label className="consent-check"><input ref={consentInputRef} type="checkbox" required checked={consentAccepted} aria-invalid={errors.includes(CONSENT_REQUIRED_MESSAGE)} aria-describedby="consent-explanation" onChange={(e) => { setConsentAccepted(e.target.checked); if (e.target.checked) setErrors((current) => current.filter((error) => error !== CONSENT_REQUIRED_MESSAGE)); }} data-testid="input-application-consent" /><span><strong>I understand how this application is used.</strong><small id="consent-explanation">It will be stored for recruitment review and visible only to authorized founders. If enabled, SendGrid processes my email to send a receipt; founder alerts share only my name, role, and reference. Fictional classes do not affect eligibility. I can use the site footer to withdraw or request deletion.</small></span></label>
           </section>}
           <div className="form-navigation">
-            {step > 0 ? <button className="button button-quiet" type="button" onClick={() => { setErrors([]); setStep(step - 1); }} data-testid="button-previous-step"><ArrowLeft size={16} /> Previous</button> : <span className="form-save-note"><LockKeyhole size={14} /> Nothing is sent until you choose to submit.</span>}
+            {step > 0 ? <button className="button button-quiet" type="button" onClick={() => goToStep(step - 1)} data-testid="button-previous-step"><ArrowLeft size={16} /> Previous</button> : <span className="form-save-note"><LockKeyhole size={14} /> Nothing is sent until you choose to submit.</span>}
             {step < 3 ? <button className="button button-primary" type="button" onClick={nextStep} data-testid="button-next-step">Continue <ArrowRight size={16} /></button> : <button className="button button-primary" type="submit" disabled={mutation.isPending} data-testid="button-submit-application">{mutation.isPending ? 'Sending your application…' : 'Send my application'} {mutation.isPending ? <span className="button-pulse" /> : <ArrowRight size={16} />}</button>}
           </div>
         </form>
