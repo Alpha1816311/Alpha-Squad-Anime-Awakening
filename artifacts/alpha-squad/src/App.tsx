@@ -215,11 +215,19 @@ function Home() {
 function AwakeningIntro({ step, onAdvance, onFinish }: { step: 0 | 1; onAdvance: () => void; onFinish: () => void }) {
   const primaryAction = useRef<HTMLButtonElement>(null);
   useEffect(() => { primaryAction.current?.focus(); }, [step]);
-  return <div className={`awakening-intro ${step === 1 ? 'awakening-intro-final' : ''}`} role="dialog" aria-modal="true" aria-labelledby="awakening-title">
+  return <div className={`awakening-intro ${step === 1 ? 'awakening-intro-final' : ''}`} role="dialog" aria-modal="true" aria-labelledby="awakening-title" onKeyDown={(event) => {
+    if (event.key === 'Escape') { onFinish(); return; }
+    if (event.key !== 'Tab') return;
+    const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not([disabled])'));
+    const first = buttons[0];
+    const last = buttons[buttons.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+  }}>
     <div className="awakening-backdrop" style={{ backgroundImage: `url("${basePath}/awakening-team.png")` }} />
     <div className="awakening-shade" />
     <header className="awakening-topline"><Logo /><span>FIELD LOG / INTAKE 001</span><button type="button" className="intro-skip" onClick={onFinish}>Skip intro <X size={14} /></button></header>
-    <main className="awakening-content" key={step}>
+    <div className="awakening-content" key={step}>
       <div className="eyebrow"><span className="eyebrow-line" /> SEQUENCE 0{step + 1} / 02 <span className="eyebrow-index">ALPHA SQUAD</span></div>
       {step === 0 ? <>
         <p className="awakening-kicker">A real team. A real mission.</p>
@@ -233,7 +241,7 @@ function AwakeningIntro({ step, onAdvance, onFinish }: { step: 0 | 1; onAdvance:
         <button ref={primaryAction} type="button" className="button button-primary awakening-cta" onClick={onFinish}>Enter the squad <ArrowRight size={17} /></button>
       </>}
       <span className="awakening-note"><ShieldCheck size={14} /> Your story stays yours. Skip or replay this intro any time.</span>
-    </main>
+    </div>
     <div className="awakening-progress"><span>POWER-UP / {step === 0 ? '01' : '02'}</span><div><i style={{ width: step === 0 ? '48%' : '100%' }} /></div><span>TEAMWORK OVER RANK</span></div>
   </div>;
 }
@@ -496,6 +504,7 @@ function FounderDashboardContent() {
   }), [status, debouncedSearch]);
   const { data: list, isLoading, isError, error, refetch } = useListFounderApplications(params);
   const { signOut } = useClerk();
+  const { user } = useUser();
   const errorText = getErrorMessage(error);
   const privateUnavailable = isError && /not configured|configuration|unavailable/i.test(errorText);
   useEffect(() => {
@@ -522,7 +531,7 @@ function FounderDashboardContent() {
         <label className="filter-control"><Filter size={15} /><select value={status} onChange={(e) => setStatus(e.target.value as Status | 'ALL')} aria-label="Filter by status" data-testid="select-application-status"><option value="ALL">All statuses</option>{statusOptions.map((value) => <option value={value} key={value}>{value}</option>)}</select><ChevronDown size={14} /></label>
       </div>
       {isLoading ? <div className="applications-loading" aria-label="Loading applications"><div className="skeleton-row" /><div className="skeleton-row" /><div className="skeleton-row" /></div>
-        : isError ? <div className="empty-state error-state"><CircleAlert size={26} /><h3>{privateUnavailable ? 'Founder access is not configured.' : 'The candidate files could not load.'}</h3><p>{privateUnavailable ? 'The server has not configured founder access. No candidate details are available.' : 'The server did not return the application list. Try again shortly.'}</p>{!privateUnavailable && <button type="button" className="button button-outline" onClick={() => refetch()} data-testid="button-retry-applications">Retry applications <ArrowRight size={15} /></button>}{/unauthorized|forbidden/i.test(errorText) && <button type="button" className="text-link-button" onClick={() => signOut({ redirectUrl: `${basePath}/sign-in` })} data-testid="button-refresh-founder-session">Refresh founder session</button>}</div>
+        : isError ? <div className="empty-state error-state"><CircleAlert size={26} /><h3>{privateUnavailable ? 'Founder access is not configured.' : 'The candidate files could not load.'}</h3><p>{privateUnavailable ? 'The server has not configured founder access. No candidate details are available.' : 'The server did not return the application list. Try again shortly.'}</p>{privateUnavailable && user?.id && <div className="founder-setup-note"><span>To authorize this account, add this ID to the server-side FOUNDER_USER_IDS environment variable:</span><code>{user.id}</code></div>}{!privateUnavailable && <button type="button" className="button button-outline" onClick={() => refetch()} data-testid="button-retry-applications">Retry applications <ArrowRight size={15} /></button>}{/unauthorized|forbidden/i.test(errorText) && <button type="button" className="text-link-button" onClick={() => signOut({ redirectUrl: `${basePath}/sign-in` })} data-testid="button-refresh-founder-session">Refresh founder session</button>}</div>
         : list?.applications.length ? <div className="application-table-wrap"><table className="application-table"><thead><tr><th>Candidate</th><th>Primary role</th><th>Experience</th><th>Received</th><th>Status</th><th><span className="sr-only">Open</span></th></tr></thead><tbody>{list.applications.map((app) => <ApplicationRow key={app.id} app={app} />)}</tbody></table></div>
         : <div className="empty-state"><div className="empty-orbit"><Search size={24} /></div><h3>{debouncedSearch || status !== 'ALL' ? 'No matching applications.' : 'The roster is open.'}</h3><p>{debouncedSearch || status !== 'ALL' ? 'Try another search or clear the status filter.' : 'There are no candidate applications to review yet.'}</p>{(debouncedSearch || status !== 'ALL') && <button type="button" className="button button-quiet" onClick={() => { setSearch(''); setStatus('ALL'); }} data-testid="button-clear-application-filters">Clear filters <X size={15} /></button>}</div>}
     </section>

@@ -1,15 +1,15 @@
-# [Project name]
+# ALPHA SQUAD — Anime Awakening
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+An anime-inspired, privacy-conscious recruitment site and founder console for building a collaborative student team.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/api-server run dev` — run the API server on its configured workflow port
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Required configuration: PostgreSQL `DATABASE_URL`, Replit-managed Clerk keys, and server-side `FOUNDER_USER_IDS` (comma-separated Clerk user IDs) to authorize founder accounts.
 
 ## Stack
 
@@ -22,23 +22,29 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/alpha-squad` — public site, application, privacy request flow, and private founder UI
+- `artifacts/api-server` — application, privacy, and founder API routes
+- `lib/api-spec/openapi.yaml` — API contract source of truth; regenerate clients with `pnpm --filter @workspace/api-spec run codegen`
+- `lib/db/src/schema` — PostgreSQL/Drizzle schema
+- `artifacts/alpha-squad/src/alpha.css` — visual system and responsive styling
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Founder access is an explicit server-side Clerk user ID allowlist. Do not bypass it or trust client-side role checks.
+- Integrations must report their real configured state. Do not simulate email delivery or AI analysis.
+- Applicant deletion permanently removes the matching application and founder notes; withdrawal retains a withdrawn record for recruitment history.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
-
-## User preferences
-
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Candidates can explore team roles and submit a multi-step application; applications are stored in PostgreSQL and reviewed in the founder console.
+- Candidates can withdraw or permanently delete an application using its receipt reference and the matching email address.
+- Recruitment is open to any college, course, year, gender, and skill background. Anime knowledge is not required; favorite-anime and fictional-class answers are optional and never affect eligibility.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Set `FOUNDER_USER_IDS` on the API server before founder access will work; an unset list intentionally denies founder access.
+- Email notifications and AI analysis remain disabled until real providers are configured; the public status endpoint exposes this state.
+- After editing the OpenAPI contract, regenerate API clients before typechecking. Push schema changes only to the development database.
 
 ## Pointers
 
