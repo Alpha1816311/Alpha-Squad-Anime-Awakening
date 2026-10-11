@@ -10,5 +10,6 @@ import type { PublicStatusStorage } from './publicStatusStorage';
 export interface PublicStatus {
   storage: PublicStatusStorage;
   emailNotifications: boolean;
+  founderAlerts: boolean;
   aiAnalysis: boolean;
 }

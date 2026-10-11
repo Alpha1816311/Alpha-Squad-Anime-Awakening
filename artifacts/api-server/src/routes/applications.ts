@@ -29,6 +29,7 @@ import {
 } from "@workspace/api-zod";
 import { applicationsTable, db } from "@workspace/db";
 import requireFounder from "../middlewares/requireFounder";
+import { getEmailSetupStatus, sendApplicationEmails } from "../services/sendgrid";
 
 const router: IRouter = Router();
 
@@ -77,8 +78,9 @@ router.post("/applications", async (req, res): Promise<void> => {
   const application = parsed.data;
   const reference = `ALPHA-${new Date().getFullYear()}-${randomBytes(12).toString("hex").toUpperCase()}`;
 
+  let savedRecord: typeof applicationsTable.$inferSelect;
   try {
-    const [saved] = await db
+    const [inserted] = await db
       .insert(applicationsTable)
       .values({
         reference,
@@ -108,20 +110,41 @@ router.post("/applications", async (req, res): Promise<void> => {
         consentedAt: new Date(),
       })
       .returning();
-
-    res.status(201).json(
-      SubmitApplicationResponse.parse({
-        reference: saved.reference,
-        createdAt: saved.createdAt.toISOString(),
-        notificationStatus: "not_configured",
-      }),
-    );
+    if (!inserted) throw new Error("Application insert returned no record");
+    savedRecord = inserted;
   } catch (error) {
-    req.log.error({ err: error }, "Unable to persist candidate application");
+    req.log.error(
+      { errorType: error instanceof Error ? error.name : typeof error },
+      "Unable to persist candidate application",
+    );
     res.status(503).json({
       error: "We could not securely save your application right now. Please try again shortly.",
     });
+    return;
   }
+
+  // Keep the database record even when the email provider is unavailable.
+  const emailDelivery = await sendApplicationEmails(savedRecord);
+  if (emailDelivery.notificationStatus === "failed") {
+    req.log.warn(
+      { providerStatusCode: emailDelivery.applicantStatusCode },
+      "Applicant confirmation was not accepted by the email provider",
+    );
+  }
+  if (emailDelivery.founderAlertStatus === "failed") {
+    req.log.warn(
+      { providerStatusCode: emailDelivery.founderStatusCode },
+      "Founder application alert was not accepted by the email provider",
+    );
+  }
+
+  res.status(201).json(
+    SubmitApplicationResponse.parse({
+      reference: savedRecord.reference,
+      createdAt: savedRecord.createdAt.toISOString(),
+      notificationStatus: emailDelivery.notificationStatus,
+    }),
+  );
 });
 
 router.post("/applications/privacy-request", async (req, res): Promise<void> => {
@@ -147,7 +170,10 @@ router.post("/applications/privacy-request", async (req, res): Promise<void> => 
       await db.delete(applicationsTable).where(matchingApplication);
     }
   } catch (error) {
-    req.log.error({ err: error }, "Unable to process candidate privacy request");
+    req.log.error(
+      { errorType: error instanceof Error ? error.name : typeof error },
+      "Unable to process candidate privacy request",
+    );
     res.status(503).json({ error: "We could not process the request right now. Please try again shortly." });
     return;
   }
@@ -171,7 +197,7 @@ router.get("/public/status", async (req, res): Promise<void> => {
   res.json(
     GetPublicStatusResponse.parse({
       storage,
-      emailNotifications: false,
+      ...getEmailSetupStatus(),
       aiAnalysis: false,
     }),
   );

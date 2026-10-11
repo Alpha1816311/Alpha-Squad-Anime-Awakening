@@ -428,6 +428,7 @@ components:
       properties:
         storage: { type: string, enum: [database, unavailable] }
         emailNotifications: { type: boolean }
+        founderAlerts: { type: boolean }
         aiAnalysis: { type: boolean }
-      required: [storage, emailNotifications, aiAnalysis]
+      required: [storage, emailNotifications, founderAlerts, aiAnalysis]
 

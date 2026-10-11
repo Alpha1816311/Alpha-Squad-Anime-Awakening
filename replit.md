@@ -31,6 +31,7 @@ An anime-inspired, privacy-conscious recruitment site and founder console for bu
 ## Architecture decisions
 
 - Founder access is an explicit server-side Clerk user ID allowlist. Do not bypass it or trust client-side role checks.
+- SendGrid sends plain-text transactional messages only after an application is saved; tracking is disabled, and provider errors must not discard applications.
 - Integrations must report their real configured state. Do not simulate email delivery or AI analysis.
 - Applicant deletion permanently removes the matching application and founder notes; withdrawal retains a withdrawn record for recruitment history.
 
@@ -43,7 +44,8 @@ An anime-inspired, privacy-conscious recruitment site and founder console for bu
 ## Gotchas
 
 - Set `FOUNDER_USER_IDS` on the API server before founder access will work; an unset list intentionally denies founder access.
-- Email notifications and AI analysis remain disabled until real providers are configured; the public status endpoint exposes this state.
+- Set `SENDGRID_FROM_EMAIL` to a verified sender to enable applicant receipts; also set `FOUNDER_NOTIFICATION_EMAIL` to enable separate founder alerts. Public status distinguishes these states.
+- AI analysis remains disabled and is not part of application scoring.
 - After editing the OpenAPI contract, regenerate API clients before typechecking. Push schema changes only to the development database.
 
 ## Pointers

@@ -162,6 +162,7 @@ export const RequestApplicationPrivacyActionResponse = zod.object({
 export const GetPublicStatusResponse = zod.object({
   "storage": zod.enum(['database', 'unavailable']),
   "emailNotifications": zod.boolean(),
+  "founderAlerts": zod.boolean(),
   "aiAnalysis": zod.boolean()
 })
 
